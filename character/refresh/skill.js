@@ -1618,12 +1618,15 @@ const skills = {
 		},
 		filterCard: lib.filter.cardDiscardable,
 		position: "he",
-		content() {
-			var card = get.discardPile(card => card.name == "sha");
+		async content(event, trigger, player) {
+			const card = get.discardPile(card => card.name == "sha"),
+				{ target } = event;
 			if (card) {
-				target.gain(card, "gain2").gaintag.add("refuman");
 				target.addTempSkill("refuman2", { player: "phaseAfter" });
 				player.addSkill("refuman_draw");
+				const next = target.gain(card, "gain2");
+				next.gaintag.add("refuman");
+				await next;
 			}
 			var stat = player.getStat("skill");
 			if (!stat.refuman_targets) {
@@ -1675,13 +1678,13 @@ const skills = {
 				forced: true,
 				filter: (event, player, name, target) => target,
 				logTarget: (event, player, name, target) => target,
-				content() {
+				async content(event, trigger, player) {
 					const [target] = event.targets,
 						evt = trigger.getParent();
 					if (["useCard", "respond"].includes(evt?.name)) {
-						game.asyncDraw([target, player]);
+						await game.asyncDraw([target, player]);
 					} else {
-						target.draw();
+						await target.draw();
 					}
 					trigger.refuman_active = true;
 				},
@@ -5106,7 +5109,7 @@ const skills = {
 				player.addMark("redanxin", 1, false);
 			}
 		},
-		intro: { content: "当前升级等级。：Lv#" },
+		intro: { content: "当前升级等级：Lv#" },
 		ai: {
 			maixie: true,
 			effect: {
@@ -10420,10 +10423,16 @@ const skills = {
 	},
 	olyajiao: {
 		audio: "reyajiao",
-		trigger: { player: "loseAfter" },
+		trigger: {
+			player: "loseAfter",
+			global: "loseAsyncAfter",
+		},
 		frequent: true,
 		filter(event, player) {
-			return player != _status.currentPhase && event.hs && event.hs.length > 0 && ["useCard", "respond"].includes(event.getParent().name);
+			if (player == _status.currentPhase) {
+				return false;
+			}
+			return ["useCard", "respond"].includes(event.getParent().name) && event.getl(player)?.hs?.length;
 		},
 		content() {
 			"step 0";
@@ -10580,7 +10589,7 @@ const skills = {
 	olpaoxiao: {
 		audio: "paoxiao",
 		audioname: ["re_zhangfei", "xiahouba", "re_guanzhang"],
-		audioname2: { guanzhang: "paoxiao_guanzhang" },
+		audioname2: { guanzhang: "paoxiao_guanzhang", ol_guanzhang: "paoxiao_ol_guanzhang" },
 		trigger: { player: "shaMiss" },
 		forced: true,
 		content() {
@@ -10600,7 +10609,7 @@ const skills = {
 		forced: true,
 		audio: "paoxiao",
 		audioname: ["re_zhangfei", "xiahouba", "re_guanzhang"],
-		audioname2: { guanzhang: "paoxiao_guanzhang" },
+		audioname2: { guanzhang: "paoxiao_guanzhang", ol_guanzhang: "paoxiao_ol_guanzhang" },
 		sourceSkill: "olpaoxiao",
 		filter(event, player) {
 			return event.card && event.card.name == "sha" && player.countMark("olpaoxiao2") > 0;
@@ -10612,6 +10621,7 @@ const skills = {
 		},
 		intro: { content: "本回合内下一次使用【杀】造成伤害时令伤害值+#" },
 	},
+	paoxiao_ol_guanzhang: { audio: 1 },
 	oltishen: {
 		audio: "retishen",
 		skillAnimation: true,
@@ -12626,7 +12636,7 @@ const skills = {
 				return;
 			}
 			if (!_status.characterlist) {
-				game.initCharactertList();
+				game.initCharacterList();
 			}
 			_status.characterlist.randomSort();
 			for (let i = 0; i < _status.characterlist.length; i++) {
@@ -14312,6 +14322,7 @@ const skills = {
 			gz_jun_liubei: "shouyue_wusheng",
 			std_guanxing: "wusheng_guanzhang",
 			ty_guanxing: "wusheng_guanzhang",
+			ol_guanzhang: "wusheng_ol_guanzhang",
 		},
 		enable: ["chooseToRespond", "chooseToUse"],
 		filterCard(card, player) {
@@ -14358,6 +14369,7 @@ const skills = {
 			},
 		},
 	},
+	wusheng_ol_guanzhang: { audio: 1 },
 	new_yijue: {
 		initSkill(skill) {
 			if (!lib.skill[skill]) {
@@ -16610,6 +16622,9 @@ const skills = {
 			order: 8,
 			result: {
 				player(player) {
+					if (player.needsToDiscard(3) && !player.hasValueTarget({ name: "sha" }, false)) {
+						return -1;
+					}
 					return get.effect(player, { name: "losehp" }, player, player);
 				},
 			},

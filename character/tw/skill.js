@@ -2923,7 +2923,10 @@ const skills = {
 				};
 			} else {
 				const storage = player.getStorage("twhuangzhu_effect");
-				const storage2 = player.getStorage("twhuangzhu_equip").slice().map(equip => equip[2]);
+				const storage2 = player
+					.getStorage("twhuangzhu_equip")
+					.slice()
+					.map(equip => equip[2]);
 				let virtualList = {};
 				let disabled = [1, 2, 3, 4, 5].filter(num => player.countDisabledSlot(num)).map(num => "equip" + num);
 				for (let i of disabled) {
@@ -2947,14 +2950,15 @@ const skills = {
 					}
 					chooseList.push(str);
 					let equips = storage.slice().filter(name => get.subtypes(name).includes(i));
-					let list = [equips, "vcard"]
+					let list = [equips, "vcard"];
 					if (equips.length) {
 						chooseList.push(list);
 					}
 				}
 				const {
 					result: { bool, links },
-				} = await player.chooseButton(chooseList, [1, 2])
+				} = await player
+					.chooseButton(chooseList, [1, 2])
 					.set("filterButton", button => {
 						let storage2 = get.event("storage2");
 						if (storage2.includes(button.link[2])) {
@@ -3323,7 +3327,7 @@ const skills = {
 				trigger: { global: ["useCardAfter", "respondAfter"] },
 				filter(event, player) {
 					return event.player.getHistory("lose", function (evt) {
-						if (evt.getParent() != event) {
+						if ((evt.relatedEvent || evt.getParent()) != event) {
 							return false;
 						}
 						for (var i in evt.gaintag_map) {
@@ -4276,7 +4280,7 @@ const skills = {
 					while (storage.length) {
 						const name = storage.shift(),
 							card = get.autoViewAs({ name: name[0].name, nature: name[0].nature, isCard: true });
-						if (!player.hasUseTarget(card, false)) {
+						if ((!get.info(card).notarget || !lib.filter.cardEnabled(card, player)) && !player.hasUseTarget(card, false)) {
 							continue;
 						}
 						const targets = await player.chooseUseTarget(`请选择${get.translation(card)}的目标，若此牌的目标不包含${get.translation(target)}，则其摸一张牌`, card, true, false, "nodistance").forResultTargets();
@@ -7151,7 +7155,7 @@ const skills = {
 						event.cards &&
 						event.cards.length == 1 &&
 						player.getHistory("lose", evt => {
-							if (evt.getParent() != event) {
+							if ((evt.relatedEvent || evt.getParent()) != event) {
 								return false;
 							}
 							for (var i in evt.gaintag_map) {
@@ -12169,7 +12173,7 @@ const skills = {
 					}
 					if (
 						!player.hasHistory("lose", function (evt) {
-							if (evt.getParent() != event) {
+							if ((evt.relatedEvent || evt.getParent()) != event) {
 								return false;
 							}
 							for (var i in evt.gaintag_map) {
@@ -16262,10 +16266,10 @@ const skills = {
 				logTarget: "player",
 				charlotte: true,
 				filter(event, player) {
-					return (
-						player !== event.player &&
-						event.player.hasHistory("lose", evt => {
-							if (event != evt.getParent()) {
+					return player !== event.player;
+					/*event.player.hasHistory("lose", evt => {
+							const evtx = evt.relatedEvent || evt.getParent();
+							if (event != evtx) {
 								return false;
 							}
 							for (var i in evt.gaintag_map) {
@@ -16273,13 +16277,13 @@ const skills = {
 									return true;
 								}
 							}
-						})
-					);
+						})*/
 				},
 				getIndex(event, player) {
 					let num = 0;
 					event.player.getHistory("lose", evt => {
-						if (event != evt.getParent()) {
+						const evtx = evt.relatedEvent || evt.getParent();
+						if (event != evtx) {
 							return false;
 						}
 						for (let i in evt.gaintag_map) {
@@ -16290,11 +16294,9 @@ const skills = {
 					});
 					return num;
 				},
-				content() {
-					"step 0";
-					game.asyncDraw([player, trigger.player]);
-					"step 1";
-					game.delayx();
+				async content(event, trigger, player) {
+					await game.asyncDraw([player, trigger.player]);
+					await game.delayx();
 				},
 			},
 			discard: {
@@ -16304,39 +16306,8 @@ const skills = {
 				},
 				forced: true,
 				charlotte: true,
-				filter(event, player) {
-					return game.hasPlayer(function (current) {
-						if (player === current) {
-							return false;
-						}
-						var evt = event.getl(current);
-						if (!evt || !evt.hs || !evt.hs.length) {
-							return false;
-						}
-						if (event.name == "lose") {
-							var name = event.getParent().name;
-							if (name == "useCard" || name == "respond") {
-								return false;
-							}
-							for (var i in event.gaintag_map) {
-								if (event.gaintag_map[i].includes("twkujianx")) {
-									return true;
-								}
-							}
-							return false;
-						}
-						return current.hasHistory("lose", function (evt) {
-							if (event != evt.getParent()) {
-								return false;
-							}
-							for (var i in evt.gaintag_map) {
-								if (evt.gaintag_map[i].includes("twkujianx")) {
-									return true;
-								}
-							}
-							return false;
-						});
-					});
+				filter(event, player, name, target) {
+					return target.isIn();
 				},
 				getIndex(event, player) {
 					let targets = [];
@@ -16364,6 +16335,10 @@ const skills = {
 							if (event != evt.getParent()) {
 								return false;
 							}
+							let name = evt.relatedEvent?.name;
+							if (name == "useCard" || name == "respond") {
+								return false;
+							}
 							for (let i in evt.gaintag_map) {
 								if (evt.gaintag_map[i].includes("twkujianx")) {
 									targets.push(current);
@@ -16378,7 +16353,7 @@ const skills = {
 					return target;
 				},
 				async content(event, trigger, player) {
-					let targets = [player, event.targets[0]].sortBySeat();
+					let targets = [player, event.indexedData].sortBySeat();
 					for (let tar of targets) {
 						if (tar.countCards("he") > 0) {
 							await tar.chooseToDiscard("he", true);
@@ -17792,7 +17767,7 @@ const skills = {
 			return (
 				!player.hasSkill("twqiongji_silent") &&
 				player.getHistory("lose", function (evt) {
-					if (evt.getParent() != event) {
+					if ((evt.relatedEvent || evt.getParent()) != event) {
 						return false;
 					}
 					for (var i in evt.gaintag_map) {

@@ -540,10 +540,11 @@ const skills = {
 				return false;
 			}
 			return player.hasHistory("lose", evt => {
-				if (evt.getParent() != event) {
+				const evtx = evt.relatedEvent || evt.getParent();
+				if (evtx != event) {
 					return false;
 				}
-				return evt.getl(player)?.hs?.some(card => event.cards.includes(card));
+				return evt.getl(player)?.hs?.length;
 			});
 		},
 		frequent: true,
@@ -1259,7 +1260,8 @@ const skills = {
 				return false;
 			}
 			return player.hasHistory("lose", evt => {
-				if (evt.getParent() != event) {
+				const evtx = evt.relatedEvent || evt.getParent();
+				if (evtx != event) {
 					return false;
 				}
 				return Object.keys(evt.gaintag_map).some(i => evt.gaintag_map[i].includes("dctanban"));
@@ -1316,6 +1318,18 @@ const skills = {
 	},
 	//黄舞蝶
 	dcshuangrui: {
+		onChooseTarget(event, player) {
+			event.targetprompt2.add(target => {
+				if (event.getParent().skill !== "dcshuangrui") {
+					return;
+				}
+				if (player.inRange(target)) {
+					return "加伤";
+				} else {
+					return "不可响应";
+				}
+			});
+		},
 		audio: 2,
 		trigger: { player: "phaseZhunbeiBegin" },
 		filter(event, player) {
@@ -1333,6 +1347,7 @@ const skills = {
 						card = { name: "sha", isCard: true };
 					return get.effect(target, card, player, player);
 				})
+				.set("_get_card", { name: "sha", isCard: true })
 				.forResult();
 		},
 		async content(event, trigger, player) {
@@ -3425,7 +3440,7 @@ const skills = {
 			const toKeepCount = player
 				.getCards("h")
 				.map(card => get.name(card))
-				.unique();
+				.unique().length;
 			if (count > toKeepCount) {
 				const [bool, cards] = await player
 					.chooseCard("自缚：选择要保留的手牌", "选择不同牌名的手牌各一张，然后弃置其余手牌", toKeepCount)
@@ -3758,7 +3773,8 @@ const skills = {
 						return false;
 					}
 					return player.hasHistory("lose", evt => {
-						if (evt.getParent() != event) {
+						const evtx = evt.relatedEvent || evt.getParent();
+						if (evtx != event) {
 							return false;
 						}
 						for (const i in evt.gaintag_map) {
@@ -5622,7 +5638,8 @@ const skills = {
 							return false;
 						}
 						return player.hasHistory("lose", evt => {
-							if (evt.getParent() != event) {
+							const evtx = evt.relatedEvent || evt.getParent();
+							if (evtx != event) {
 								return false;
 							}
 							return Object.values(evt.gaintag_map).flat().includes("dclvecheng_xiongluan");
@@ -17477,27 +17494,25 @@ const skills = {
 				return 7 - num;
 			}
 		},
-		content() {
-			"step 0";
-			player.give(cards, target);
-			"step 1";
+		async content(event, trigger, player) {
+			const { cards, target } = event;
+			player.give(cards, target, true);
 			if (get.color(cards[0], player) == "red") {
-				player.draw();
-				event.finish();
-			} else {
-				target
-					.chooseToDiscard("he", 2, "弃置两张牌，或令" + get.translation(player) + "摸两张牌")
-					.set("goon", get.attitude(target, player) < 0)
-					.set("ai", function (card) {
-						if (!_status.event.goon) {
-							return -get.value(card);
-						}
-						return 6 - get.value(card);
-					});
+				await player.draw();
+				return;
 			}
-			"step 2";
+			const result = await target
+				.chooseToDiscard("he", 2, "弃置两张牌，或令" + get.translation(player) + "摸两张牌")
+				.set("goon", get.attitude(target, player) < 0)
+				.set("ai", function (card) {
+					if (!_status.event.goon) {
+						return -get.value(card);
+					}
+					return 6 - get.value(card);
+				})
+				.forResult();
 			if (!result.bool) {
-				player.draw(2);
+				await player.draw(2);
 			}
 		},
 		ai: {
